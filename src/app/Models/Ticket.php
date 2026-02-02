@@ -8,4 +8,6 @@ class Ticket extends Model
 {
     //
     protected $table = 'tickets';
+
+    protected $guarded = ['id'];
 }

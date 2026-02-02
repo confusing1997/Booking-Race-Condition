@@ -21,10 +21,11 @@ class TicketController extends Controller
         if ($ticket->quantity > 0) {
             // Giả lập độ trễ hệ thống (Latency) để dễ xảy ra Race Condition hơn
             // Trong thực tế, độ trễ này là thời gian xử lý thanh toán, gửi mail...
-            usleep(200000); // Ngủ 0.2 giây
+            usleep(300000); // Ngủ 0.2 giây
 
             // 2. Trừ tồn kho
-            $ticket->decrement('quantity');
+            $newQuantity = $ticket->quantity - 1; // Tính toán bằng PHP thay vì SQL
+            $ticket->update(['quantity' => $newQuantity]);
 
             // 3. Tạo đơn hàng
             Order::create([
