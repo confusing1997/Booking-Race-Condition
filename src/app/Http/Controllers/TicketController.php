@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Ticket;
+use Cache;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,8 +14,8 @@ class TicketController extends Controller
     // CÁCH 1: KHÔNG DÙNG LOCK (Sẽ bị lỗi Overselling khi tải cao)
     public function orderWithoutLock(Request $request)
     {
-        $ticketId = 1; // Giả sử mua loại vé ID = 1
-        $userId = 1; // Giả lập user ID ngẫu nhiên
+        $ticketId = $request->input('ticket_id', 1); // Giả sử mua loại vé ID = 1
+        $userId = $request->input('user_id', 1); // Giả lập user ID ngẫu nhiên
 
         // 1. Kiểm tra tồn kho
         $ticket = Ticket::find($ticketId);
@@ -43,46 +45,42 @@ class TicketController extends Controller
     // CÁCH 2: SỬ DỤNG REDIS LOCK (An toàn tuyệt đối)
     public function orderWithRedisLock(Request $request)
     {
-        $ticketId = 1;
-        $userId = 1;
+        // 1. Lấy ticket_id từ request, mặc định là 1 nếu không truyền (để demo vẫn chạy)
+        $ticketId = $request->input('ticket_id', 1);
+        $userId = 1; // Giả sử user đã login
 
-        // Tạo một cái "khóa" tên là ticket_1, chờ tối đa 10s để lấy khóa
-        // block(5): Nếu ai đó đang giữ khóa, tôi sẽ đứng chờ 5s. 
-        // Sau 5s vẫn không lấy được thì bỏ cuộc.
-        $lock = \Illuminate\Support\Facades\Cache::lock('ticket_lock_' . $ticketId, 10);
+        $lock = Cache::lock("ticket_lock_" . $ticketId, 10);
 
         try {
-            // Cố gắng lấy lock
+            // Chờ tối đa 5 giây để lấy khóa
             $lock->block(5);
-            
-            // Vẫn giả lập độ trễ để chứng minh Lock hoạt động tốt
-            usleep(200000); 
-            
-            DB::transaction(function () use ($ticketId, $userId, $lock) {
-              $ticket = Ticket::lockForUpdate()->find($ticketId);
-              if ($ticket->quantity > 0) {
+
+            $ticket = Ticket::find($ticketId);
+
+            // Kiểm tra xem vé có tồn tại không
+            if (!$ticket) {
+                return response()->json(['message' => 'Vé không tồn tại!'], 404);
+            }
+
+            if ($ticket->quantity > 0) {
+                // Giả lập xử lý nặng
+                usleep(200000); 
+
                 $ticket->decrement('quantity');
                 Order::create([
                     'user_id' => $userId,
-                    'ticket_id' => $ticketId
+                    'ticket_id' => $ticketId,
                 ]);
-              } else {
-                $lock->release(); // Hết vé cũng phải mở khóa
-                return response()->json(['message' => 'Hết vé!'], 400);
-              }
 
-            });
+                return response()->json(['message' => 'Mua vé thành công!']);
+            }
 
-            // Mở khóa ngay khi xong việc để người khác vào
-            $lock->release();
+            return response()->json(['message' => 'Hết vé!'], 400);
 
-            return response()->json(['message' => 'Mua thành công (Locked)!']);            
-
-            // --- KẾT THÚC VÙNG AN TOÀN ---
-
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
-            // Chờ 5s mà vẫn không đến lượt -> Server quá tải
+        } catch (LockTimeoutException $e) {
             return response()->json(['message' => 'Hệ thống đang bận, vui lòng thử lại!'], 429);
+        } finally {
+            $lock->release();
         }
     }
 }

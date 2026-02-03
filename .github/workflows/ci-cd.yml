@@ -1,0 +1,59 @@
+name: Laravel Booking CI/CD
+
+on:
+  push:
+    branches: [ "main" ] # Chạy mỗi khi bạn push vào branch main
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  laravel-tests:
+    runs-on: ubuntu-latest # Chạy trên server Ubuntu của GitHub
+
+    services:
+      # GitHub Actions sẽ tự dựng MySQL và Redis cho bạn test
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: laravel_test
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, gd, redis # Phải có redis extension
+
+      - name: Install Dependencies
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+        working-directory: src
+
+      - name: Copy .env
+        run: cp .env.example .env
+        working-directory: src
+
+      - name: Generate key
+        run: php artisan key:generate
+        working-directory: src
+
+      - name: Run Tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: laravel_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          CACHE_STORE: redis
+          REDIS_HOST: 127.0.0.1
+        run: php artisan test
+        working-directory: src

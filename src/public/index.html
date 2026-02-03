@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Săn Vé Concert - Redis Lock Demo</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto px-4 py-10">
+        <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-4 text-center">🎫 Hệ thống Săn Vé VIP</h1>
+            
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+                <div class="flex justify-between items-center">
+                    <span class="text-blue-700 font-semibold text-lg">Số lượng vé còn lại:</span>
+                    <span class="text-4xl font-bold text-blue-600">{{ quantity }}</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-8">
+                <button @click="buyTicket('/api/buy-no-lock')" 
+                        :disabled="loading || quantity === 0"
+                        class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                    Mua (Không Lock)
+                </button>
+                <button @click="buyTicket('/api/buy-with-lock')" 
+                        :disabled="loading || quantity === 0"
+                        class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
+                    Mua (Với Redis Lock)
+                </button>
+            </div>
+
+            <div class="border-t pt-4">
+                <h3 class="font-semibold text-gray-700 mb-2">Lịch sử giao dịch mới nhất:</h3>
+                <ul class="space-y-2">
+                    <li v-for="(log, index) in logs" :key="index" 
+                        :class="log.status === 'success' ? 'text-green-600' : 'text-red-600'"
+                        class="text-sm font-mono bg-gray-50 p-2 rounded border">
+                        {{ log.time }} - {{ log.message }}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const quantity = ref(0);
+                const logs = ref([]);
+                const loading = ref(false);
+
+                // Hàm lấy số lượng vé thực tế từ Backend
+                const fetchStatus = async () => {
+                    try {
+                        const response = await axios.get('/api/ticket-status');
+                        quantity.value = response.data.quantity;
+                    } catch (error) {
+                        console.error("Không thể lấy trạng thái vé");
+                    }
+                };
+
+                const buyTicket = async (url) => {
+                    loading.value = true;
+                    try {
+                        const response = await axios.post(url, {}, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        logs.value.unshift({
+                            time: new Date().toLocaleTimeString(),
+                            message: response.data.message,
+                            status: 'success'
+                        });
+
+                        fetchStatus();
+                    } catch (error) {
+                        logs.value.unshift({
+                            time: new Date().toLocaleTimeString(),
+                            message: error.response?.data?.message || 'Lỗi hệ thống!',
+                            status: 'error'
+                        });
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                onMounted(() => {
+                    fetchStatus();
+                    // setInterval(fetchStatus, 2000); 
+                });
+
+                return { quantity, logs, loading, buyTicket };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
