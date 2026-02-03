@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\DB;
 
 class TicketController extends Controller
 {
+    // Thêm vào TicketController.php
+    public function getStatus() {
+        $ticket = Ticket::find(1);
+        return response()->json(['quantity' => $ticket->quantity]);
+    }
+
     // CÁCH 1: KHÔNG DÙNG LOCK (Sẽ bị lỗi Overselling khi tải cao)
     public function orderWithoutLock(Request $request)
     {
