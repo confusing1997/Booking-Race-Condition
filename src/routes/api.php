@@ -10,4 +10,4 @@ use Illuminate\Support\Facades\Route;
 // use App\Http\Controllers\TicketController;
 Route::get('/ticket-status', [TicketController::class, 'getStatus']);
 Route::post('/buy-no-lock', [TicketController::class, 'orderWithoutLock']);
-Route::post('/buy-with-lock', [TicketController::class, 'orderWithRedisLock']);
+Route::post('/buy-with-queue', [TicketController::class, 'buyWithQueue']);

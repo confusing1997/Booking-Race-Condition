@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessTicketPurchase;
 use App\Models\Order;
 use App\Models\Ticket;
 use Cache;
@@ -49,6 +50,20 @@ class TicketController extends Controller
 
 
     // CÁCH 2: SỬ DỤNG REDIS LOCK (An toàn tuyệt đối)
+    public function buyWithQueue(Request $request)
+    {
+        $ticketId = $request->input('ticket_id', 1);
+        $userId = 1; // Giả lập user
+
+        // 1. Đẩy vào hàng đợi (Cực nhanh, tốn < 10ms)
+        ProcessTicketPurchase::dispatch($userId, $ticketId);
+
+        // 2. Trả về ngay lập tức cho người dùng
+        return response()->json([
+            'message' => 'Yêu cầu đang được xử lý. Vui lòng chờ!',
+            'status' => 'pending'
+        ]);
+    }
     public function orderWithRedisLock(Request $request)
     {
         // 1. Lấy ticket_id từ request, mặc định là 1 nếu không truyền (để demo vẫn chạy)
