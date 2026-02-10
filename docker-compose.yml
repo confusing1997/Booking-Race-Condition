@@ -35,6 +35,21 @@ services:
     image: redis:alpine
     networks:
       - booking-network
+
+  horizon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: booking_horizon
+    volumes:
+      - ./src:/var/www
+    depends_on:
+      - redis
+      - db
+    # Thay vì chạy php-fpm, container này chạy lệnh horizon
+    command: php artisan horizon
+    networks:
+      - booking-network
       
 networks:
   booking-network:
